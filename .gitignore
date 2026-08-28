@@ -11,6 +11,7 @@ src/
 *.pkg.tar
 *.pkg.tar.zst
 *.pkg.tar.xz
+Makefile
 
 # Duplicate / Nested Repo
 /Crosshair-W/

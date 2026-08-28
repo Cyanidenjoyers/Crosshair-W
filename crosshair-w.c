@@ -14,10 +14,16 @@
 int verbose = 0;
 #define debug(...) do { if (verbose) fprintf(stderr, __VA_ARGS__); } while(0)
 
+/* -------------------------------------------------------------------------
+ * Data Structures
+ * ---------------------------------------------------------------------- */
+
+// Stores a specific crosshair look (used to remember settings per style)
 typedef struct {
     double red, green, blue, alpha, size, thickness, gap, offset_x, offset_y;
 } StylePreset;
 
+// Main widget struct, holds every pointer and variable
 typedef struct {
     GtkWidget *style_combo;
     GtkWidget *color_button;
@@ -35,10 +41,15 @@ typedef struct {
 
     GtkWidget *enable_check;
     GtkWidget *preview_area;
+    
+    // Current state values
     double red, green, blue, alpha, size, thickness, gap, offset_x, offset_y;
     int style, enabled;
-    StylePreset style_presets[4]; // remembered settings per crosshair style
+    
+    // Remembers settings for each of the 4 styles
+    StylePreset style_presets[4];
 
+    // Gamma controls
     GtkWidget *gamma_check;
     GtkWidget *gamma_spin;
     int use_gamma;
@@ -50,7 +61,11 @@ typedef struct {
     GtkWidget *window;
 } Widgets;
 
-// --- Preview drawing function (with corrected offsets) ---
+/* -------------------------------------------------------------------------
+ * Preview Drawing
+ * ---------------------------------------------------------------------- */
+
+// Helper to draw the cross lines (with gap support)
 static void draw_cross_lines(cairo_t *cr, double cx, double cy, double s, double t, double g, double scale) {
     double ss = s * scale, ts = t * scale, gs = g * scale;
     if (gs < 0) gs = 0;
@@ -67,14 +82,15 @@ static void draw_cross_lines(cairo_t *cr, double cx, double cy, double s, double
     cairo_stroke(cr);
 }
 
+// Main drawing area callback
 static gboolean draw_preview(GtkWidget *widget, cairo_t *cr, gpointer data) {
     Widgets *w = (Widgets*)data;
     GtkAllocation alloc;
     gtk_widget_get_allocation(widget, &alloc);
-    
     double s = w->size;
     double t = w->thickness;
 
+    // Create a rounded corner clipping region
     double radius = 8.0;
     double x = 0, y = 0, width = alloc.width, height = alloc.height;
     cairo_new_path(cr);
@@ -85,19 +101,23 @@ static gboolean draw_preview(GtkWidget *widget, cairo_t *cr, gpointer data) {
     cairo_close_path(cr);
     cairo_clip(cr);
 
+    // Draw the background
     cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
     GdkRGBA bg_color;
     gdk_rgba_parse(&bg_color, w->preview_bg);
     cairo_set_source_rgba(cr, bg_color.red, bg_color.green, bg_color.blue, bg_color.alpha);
     cairo_paint(cr);
 
+    // Draw the crosshair (ignoring the "Enable" checkbox)
     cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
     cairo_set_source_rgba(cr, w->red, w->green, w->blue, w->alpha);
 
+    // Scale the crosshair down if it's too big for the preview area
     double scale = 1.0;
     double max_dim = fmin(alloc.width, alloc.height) / 2.0 - 5;
     if (s > max_dim) scale = max_dim / s;
 
+    // Center, but apply scaled offsets so it matches the real overlay
     double cx = alloc.width / 2.0 + (w->offset_x * scale);
     double cy = alloc.height / 2.0 + (w->offset_y * scale);
 
@@ -125,7 +145,11 @@ static gboolean draw_preview(GtkWidget *widget, cairo_t *cr, gpointer data) {
     return FALSE;
 }
 
-// --- Reload daemon ---
+/* -------------------------------------------------------------------------
+ * Daemon Control
+ * ---------------------------------------------------------------------- */
+
+// Reload daemon by sending SIGHUP
 void reload_daemon() {
     debug("reload_daemon: trying to reload daemon\n");
     FILE *f = fopen("/tmp/crosshaird.pid", "r");
@@ -154,7 +178,7 @@ void reload_daemon() {
     }
 }
 
-// --- Kill daemon and wlsunset on exit ---
+// Kill daemon and wlsunset on exit
 void kill_daemon() {
     debug("kill_daemon: killing crosshaird and wlsunset\n");
     system("pkill -f wlsunset 2>/dev/null");
@@ -169,7 +193,11 @@ void kill_daemon() {
     }
 }
 
-// --- Apply theme ---
+/* -------------------------------------------------------------------------
+ * Styling / Theming
+ * ---------------------------------------------------------------------- */
+
+// Apply CSS themes to the window
 void apply_theme(Widgets *w) {
     GtkStyleContext *context = gtk_widget_get_style_context(w->window);
     GtkCssProvider *provider = gtk_css_provider_new();
@@ -216,7 +244,9 @@ void apply_theme(Widgets *w) {
     g_object_unref(provider);
 }
 
-// --- Style-dependent widget state ---
+/* -------------------------------------------------------------------------
+ * Helper: Update UI state based on selected style
+ * ---------------------------------------------------------------------- */
 static void update_style_dependent_widgets(Widgets *w) {
     int style = gtk_combo_box_get_active(GTK_COMBO_BOX(w->style_combo));
     gboolean is_cross = (style == 1 || style == 3); // Cross, Dot + Cross
@@ -234,7 +264,75 @@ static void update_style_dependent_widgets(Widgets *w) {
     gtk_widget_set_sensitive(w->thickness_spin, uses_thickness);
 }
 
-// --- Save config ---
+/* -------------------------------------------------------------------------
+ * Sync Callbacks (Sliders <-> Spinbuttons)
+ * ---------------------------------------------------------------------- */
+void on_size_spin_changed(GtkSpinButton *spin, gpointer data) {
+    Widgets *w = (Widgets*)data;
+    gtk_range_set_value(GTK_RANGE(w->size_scale), gtk_spin_button_get_value(spin));
+    save_config(w);
+}
+void on_size_slider_changed(GtkRange *range, gpointer data) {
+    Widgets *w = (Widgets*)data;
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(w->size_spin), gtk_range_get_value(range));
+    save_config(w);
+}
+void on_alpha_spin_changed(GtkSpinButton *spin, gpointer data) {
+    Widgets *w = (Widgets*)data;
+    gtk_range_set_value(GTK_RANGE(w->alpha_scale), gtk_spin_button_get_value(spin));
+    save_config(w);
+}
+void on_alpha_slider_changed(GtkRange *range, gpointer data) {
+    Widgets *w = (Widgets*)data;
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(w->alpha_spin), gtk_range_get_value(range));
+    save_config(w);
+}
+void on_offset_x_spin_changed(GtkSpinButton *spin, gpointer data) {
+    Widgets *w = (Widgets*)data;
+    gtk_range_set_value(GTK_RANGE(w->offset_x_scale), gtk_spin_button_get_value(spin));
+    save_config(w);
+}
+void on_offset_x_slider_changed(GtkRange *range, gpointer data) {
+    Widgets *w = (Widgets*)data;
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(w->offset_x_spin), gtk_range_get_value(range));
+    save_config(w);
+}
+void on_offset_y_spin_changed(GtkSpinButton *spin, gpointer data) {
+    Widgets *w = (Widgets*)data;
+    gtk_range_set_value(GTK_RANGE(w->offset_y_scale), gtk_spin_button_get_value(spin));
+    save_config(w);
+}
+void on_offset_y_slider_changed(GtkRange *range, gpointer data) {
+    Widgets *w = (Widgets*)data;
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(w->offset_y_spin), gtk_range_get_value(range));
+    save_config(w);
+}
+void on_thickness_spin_changed(GtkSpinButton *spin, gpointer data) {
+    Widgets *w = (Widgets*)data;
+    gtk_range_set_value(GTK_RANGE(w->thickness_scale), gtk_spin_button_get_value(spin));
+    save_config(w);
+}
+void on_thickness_slider_changed(GtkRange *range, gpointer data) {
+    Widgets *w = (Widgets*)data;
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(w->thickness_spin), gtk_range_get_value(range));
+    save_config(w);
+}
+void on_gap_spin_changed(GtkSpinButton *spin, gpointer data) {
+    Widgets *w = (Widgets*)data;
+    gtk_range_set_value(GTK_RANGE(w->gap_scale), gtk_spin_button_get_value(spin));
+    save_config(w);
+}
+void on_gap_slider_changed(GtkRange *range, gpointer data) {
+    Widgets *w = (Widgets*)data;
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(w->gap_spin), gtk_range_get_value(range));
+    save_config(w);
+}
+
+/* -------------------------------------------------------------------------
+ * Config Save / Load
+ * ---------------------------------------------------------------------- */
+
+// Save current settings to JSON config
 void save_config(Widgets *w) {
     debug("save_config: saving config\n");
     w->style = gtk_combo_box_get_active(GTK_COMBO_BOX(w->style_combo));
@@ -253,6 +351,7 @@ void save_config(Widgets *w) {
     w->use_gamma = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(w->gamma_check));
     w->gamma = gtk_spin_button_get_value(GTK_SPIN_BUTTON(w->gamma_spin));
 
+    // Remember this style's look so switching styles and back restores it
     if (w->style >= 0 && w->style < 4) {
         StylePreset *p = &w->style_presets[w->style];
         p->red = w->red;
@@ -290,6 +389,7 @@ void save_config(Widgets *w) {
     json_object_object_add(root, "preview_bg", json_object_new_string(w->preview_bg));
     json_object_object_add(root, "theme", json_object_new_string(w->theme));
 
+    // Save per-style presets
     json_object *styles_arr = json_object_new_array();
     for (int i = 0; i < 4; i++) {
         StylePreset *p = &w->style_presets[i];
@@ -318,7 +418,7 @@ void save_config(Widgets *w) {
     gtk_widget_queue_draw(w->preview_area);
 }
 
-// --- Load config ---
+// Load settings from JSON config
 void load_config_into_ui(Widgets *w) {
     const char *home = getenv("HOME");
     char path[512];
@@ -441,7 +541,10 @@ void load_config_into_ui(Widgets *w) {
     gtk_widget_queue_draw(w->preview_area);
 }
 
-// --- Callbacks ---
+/* -------------------------------------------------------------------------
+ * General Callbacks
+ * ---------------------------------------------------------------------- */
+
 void on_crosshair_changed(GtkWidget *widget, gpointer data) {
     (void)widget;
     Widgets *w = (Widgets*)data;
@@ -457,6 +560,7 @@ void on_style_changed(GtkWidget *widget, gpointer data) {
 
     if (new_style >= 0 && new_style < 4) {
         StylePreset *p = &w->style_presets[new_style];
+        // Block signal handlers during silent set
         g_signal_handlers_block_by_func(w->color_button, G_CALLBACK(on_crosshair_changed), w);
         g_signal_handlers_block_by_func(w->alpha_scale, G_CALLBACK(on_crosshair_changed), w);
         g_signal_handlers_block_by_func(w->size_scale, G_CALLBACK(on_crosshair_changed), w);
@@ -474,13 +578,7 @@ void on_style_changed(GtkWidget *widget, gpointer data) {
         gtk_range_set_value(GTK_RANGE(w->offset_x_scale), p->offset_x);
         gtk_range_set_value(GTK_RANGE(w->offset_y_scale), p->offset_y);
 
-        gtk_spin_button_set_value(GTK_SPIN_BUTTON(w->alpha_spin), p->alpha);
-        gtk_spin_button_set_value(GTK_SPIN_BUTTON(w->size_spin), p->size);
-        gtk_spin_button_set_value(GTK_SPIN_BUTTON(w->thickness_spin), p->thickness);
-        gtk_spin_button_set_value(GTK_SPIN_BUTTON(w->gap_spin), p->gap);
-        gtk_spin_button_set_value(GTK_SPIN_BUTTON(w->offset_x_spin), p->offset_x);
-        gtk_spin_button_set_value(GTK_SPIN_BUTTON(w->offset_y_spin), p->offset_y);
-
+        // Unblock
         g_signal_handlers_unblock_by_func(w->color_button, G_CALLBACK(on_crosshair_changed), w);
         g_signal_handlers_unblock_by_func(w->alpha_scale, G_CALLBACK(on_crosshair_changed), w);
         g_signal_handlers_unblock_by_func(w->size_scale, G_CALLBACK(on_crosshair_changed), w);
@@ -538,7 +636,10 @@ void on_back_clicked(GtkButton *button, gpointer data) {
     gtk_notebook_set_current_page(GTK_NOTEBOOK(w->notebook), 0);
 }
 
-// --- Daemon auto-start ---
+/* -------------------------------------------------------------------------
+ * Daemon Startup / Signal Handling
+ * ---------------------------------------------------------------------- */
+
 void ensure_daemon_running() {
     FILE *f = fopen("/tmp/crosshaird.pid", "r");
     if (f) {
@@ -556,14 +657,16 @@ void ensure_daemon_running() {
     }
 }
 
-// --- SIGINT handler for GUI ---
 static void sigint_handler(int sig) {
     (void)sig;
     kill_daemon();
     gtk_main_quit();
 }
 
-// --- Main ---
+/* -------------------------------------------------------------------------
+ * Main
+ * ---------------------------------------------------------------------- */
+
 int main(int argc, char **argv) {
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-v") == 0) verbose = 1;
@@ -573,13 +676,14 @@ int main(int argc, char **argv) {
     ensure_daemon_running();
     signal(SIGINT, sigint_handler);
 
+    // Create window
     GtkWidget *window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_title(GTK_WINDOW(window), "Crosshair");
     gtk_window_set_default_size(GTK_WINDOW(window), 600, 800); 
     gtk_window_set_resizable(GTK_WINDOW(window), TRUE);
     g_signal_connect(window, "destroy", G_CALLBACK(on_destroy), NULL);
 
-    // Header Bar with Icon
+    // Create header bar with icon
     GtkWidget *header = gtk_header_bar_new();
     gtk_header_bar_set_title(GTK_HEADER_BAR(header), "Crosshair");
     gtk_header_bar_set_show_close_button(GTK_HEADER_BAR(header), TRUE);
@@ -607,7 +711,7 @@ int main(int argc, char **argv) {
         widgets.style_presets[i].offset_y = 0.0;
     }
 
-    // ---------- Crosshair tab ----------
+    /* ------------------------- Crosshair Tab ------------------------- */
     GtkWidget *crosshair_page = gtk_box_new(GTK_ORIENTATION_VERTICAL, 14);
     gtk_container_set_border_width(GTK_CONTAINER(crosshair_page), 18);
     GtkWidget *crosshair_scroll = gtk_scrolled_window_new(NULL, NULL);
@@ -620,7 +724,7 @@ int main(int argc, char **argv) {
     gtk_style_context_add_class(gtk_widget_get_style_context(page_title), "page-title");
     gtk_box_pack_start(GTK_BOX(crosshair_page), page_title, FALSE, FALSE, 0);
 
-    // Preview card
+    // Preview
     GtkWidget *preview_frame = gtk_frame_new("Preview");
     gtk_box_pack_start(GTK_BOX(crosshair_page), preview_frame, FALSE, FALSE, 0);
     GtkWidget *preview_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
@@ -634,7 +738,7 @@ int main(int argc, char **argv) {
     g_signal_connect(widgets.preview_area, "draw", G_CALLBACK(draw_preview), &widgets);
     gtk_box_pack_start(GTK_BOX(preview_box), widgets.preview_area, FALSE, FALSE, 0);
 
-    // Appearance card: style, color
+    // Appearance
     GtkWidget *appearance_frame = gtk_frame_new("Appearance");
     gtk_box_pack_start(GTK_BOX(crosshair_page), appearance_frame, FALSE, FALSE, 0);
     GtkWidget *appearance_grid = gtk_grid_new();
@@ -667,7 +771,7 @@ int main(int argc, char **argv) {
     gtk_grid_attach(GTK_GRID(appearance_grid), widgets.color_button, 1, arow++, 1, 1);
     g_signal_connect(widgets.color_button, "color-set", G_CALLBACK(on_crosshair_changed), &widgets);
 
-    // Size, position & opacity Frame
+    // Size, position & opacity
     GtkWidget *size_frame = gtk_frame_new("Size, position & opacity");
     gtk_box_pack_start(GTK_BOX(crosshair_page), size_frame, FALSE, FALSE, 0);
     GtkWidget *size_grid = gtk_grid_new();
@@ -681,12 +785,10 @@ int main(int argc, char **argv) {
     GtkWidget *size_label = gtk_label_new("Size (px)");
     gtk_widget_set_halign(size_label, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(size_grid), size_label, 0, srow, 1, 1);
-
     widgets.size_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 1, 50, 1);
     gtk_widget_set_hexpand(widgets.size_scale, TRUE);
     gtk_grid_attach(GTK_GRID(size_grid), widgets.size_scale, 1, srow, 1, 1);
     g_signal_connect(widgets.size_scale, "value-changed", G_CALLBACK(on_size_slider_changed), &widgets);
-
     widgets.size_spin = gtk_spin_button_new_with_range(1, 50, 1);
     gtk_widget_set_size_request(widgets.size_spin, 80, -1);
     gtk_grid_attach(GTK_GRID(size_grid), widgets.size_spin, 2, srow++, 1, 1);
@@ -695,12 +797,10 @@ int main(int argc, char **argv) {
     GtkWidget *alpha_label = gtk_label_new("Opacity");
     gtk_widget_set_halign(alpha_label, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(size_grid), alpha_label, 0, srow, 1, 1);
-
     widgets.alpha_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0, 1, 0.01);
     gtk_widget_set_hexpand(widgets.alpha_scale, TRUE);
     gtk_grid_attach(GTK_GRID(size_grid), widgets.alpha_scale, 1, srow, 1, 1);
     g_signal_connect(widgets.alpha_scale, "value-changed", G_CALLBACK(on_alpha_slider_changed), &widgets);
-
     widgets.alpha_spin = gtk_spin_button_new_with_range(0, 1, 0.01);
     gtk_widget_set_size_request(widgets.alpha_spin, 80, -1);
     gtk_grid_attach(GTK_GRID(size_grid), widgets.alpha_spin, 2, srow++, 1, 1);
@@ -709,12 +809,10 @@ int main(int argc, char **argv) {
     GtkWidget *offset_x_label = gtk_label_new("Offset X\n(relative to center)");
     gtk_widget_set_halign(offset_x_label, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(size_grid), offset_x_label, 0, srow, 1, 1);
-
     widgets.offset_x_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, -50, 50, 1);
     gtk_widget_set_hexpand(widgets.offset_x_scale, TRUE);
     gtk_grid_attach(GTK_GRID(size_grid), widgets.offset_x_scale, 1, srow, 1, 1);
     g_signal_connect(widgets.offset_x_scale, "value-changed", G_CALLBACK(on_offset_x_slider_changed), &widgets);
-
     widgets.offset_x_spin = gtk_spin_button_new_with_range(-50, 50, 1);
     gtk_widget_set_size_request(widgets.offset_x_spin, 80, -1);
     gtk_grid_attach(GTK_GRID(size_grid), widgets.offset_x_spin, 2, srow++, 1, 1);
@@ -723,18 +821,15 @@ int main(int argc, char **argv) {
     GtkWidget *offset_y_label = gtk_label_new("Offset Y\n(relative to center)");
     gtk_widget_set_halign(offset_y_label, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(size_grid), offset_y_label, 0, srow, 1, 1);
-
     widgets.offset_y_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, -50, 50, 1);
     gtk_widget_set_hexpand(widgets.offset_y_scale, TRUE);
     gtk_grid_attach(GTK_GRID(size_grid), widgets.offset_y_scale, 1, srow, 1, 1);
     g_signal_connect(widgets.offset_y_scale, "value-changed", G_CALLBACK(on_offset_y_slider_changed), &widgets);
-
     widgets.offset_y_spin = gtk_spin_button_new_with_range(-50, 50, 1);
     gtk_widget_set_size_request(widgets.offset_y_spin, 80, -1);
     gtk_grid_attach(GTK_GRID(size_grid), widgets.offset_y_spin, 2, srow++, 1, 1);
     g_signal_connect(widgets.offset_y_spin, "value-changed", G_CALLBACK(on_offset_y_spin_changed), &widgets);
 
-    // Thickness & Gap Row
     widgets.thickness_label = gtk_label_new("Thickness (px)");
     gtk_widget_set_halign(widgets.thickness_label, GTK_ALIGN_END);
     gtk_grid_attach(GTK_GRID(size_grid), widgets.thickness_label, 0, srow, 1, 1);
@@ -767,7 +862,7 @@ int main(int argc, char **argv) {
     gtk_box_pack_start(GTK_BOX(crosshair_page), settings_button, FALSE, FALSE, 0);
     g_signal_connect(settings_button, "clicked", G_CALLBACK(on_settings_clicked), &widgets);
 
-    // ---------- Misc tab ----------
+    /* ------------------------- Misc Tab ------------------------- */
     GtkWidget *settings_grid = gtk_grid_new();
     gtk_grid_set_row_spacing(GTK_GRID(settings_grid), 12);
     gtk_grid_set_column_spacing(GTK_GRID(settings_grid), 12);
@@ -844,7 +939,7 @@ int main(int argc, char **argv) {
     g_signal_connect(widgets.gamma_spin, "value-changed", G_CALLBACK(on_crosshair_changed), &widgets);
     mrow++;
 
-    // Force offsets to 0 before loading config
+    // Force defaults for offsets before loading config
     gtk_range_set_value(GTK_RANGE(widgets.offset_x_scale), 0.0);
     gtk_range_set_value(GTK_RANGE(widgets.offset_y_scale), 0.0);
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(widgets.offset_x_spin), 0.0);

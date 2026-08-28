@@ -119,15 +119,12 @@ static gboolean on_draw(GtkWidget *widget, cairo_t *cr, gpointer data) {
     double s = current_size;
     double t = current_thickness;
 
-    debug("render_crosshair: %dx%d\n", (int)cx, (int)cy);
-
     // Clear the surface
     cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
     cairo_paint(cr);
     
     // If disabled, return leaving it transparent
     if (!is_enabled) {
-        debug("  crosshair disabled, surface stays transparent\n");
         return FALSE;
     }
 
@@ -157,7 +154,6 @@ static gboolean on_draw(GtkWidget *widget, cairo_t *cr, gpointer data) {
             break;
     }
     
-    debug("  surface blitted\n");
     return FALSE;
 }
 
@@ -165,8 +161,6 @@ static gboolean on_draw(GtkWidget *widget, cairo_t *cr, gpointer data) {
 // Initialization & Signals
 // --------------------------------------------------------------------------
 static void reload_daemon() {
-    debug("reload_daemon: sending SIGHUP\n");
-    // This will be handled by the main loop, so just queue a redraw
     if (drawing_area) {
         gtk_widget_queue_draw(drawing_area);
     }
@@ -174,7 +168,6 @@ static void reload_daemon() {
 
 static void sig_handler(int sig) {
     (void)sig;
-    debug("Received signal %d, cleaning up...\n", sig);
     gtk_main_quit();
 }
 
@@ -205,13 +198,14 @@ int main(int argc, char **argv) {
     gtk_window_set_accept_focus(GTK_WINDOW(window), FALSE);
 
     // Configure Layer Shell
-    gtk_layer_init_for_window(window);
-    gtk_layer_set_layer(window, GTK_LAYER_SHELL_LAYER_OVERLAY);
-    gtk_layer_set_anchor(window, GTK_LAYER_SHELL_EDGE_TOP, TRUE);
-    gtk_layer_set_anchor(window, GTK_LAYER_SHELL_EDGE_BOTTOM, TRUE);
-    gtk_layer_set_anchor(window, GTK_LAYER_SHELL_EDGE_LEFT, TRUE);
-    gtk_layer_set_anchor(window, GTK_LAYER_SHELL_EDGE_RIGHT, TRUE);
-    gtk_layer_set_keyboard_mode(window, GTK_LAYER_SHELL_KEYBOARD_MODE_NONE);
+    // FIXED: Casting to GTK_WINDOW(window) because layer shell expects GtkWindow*
+    gtk_layer_init_for_window(GTK_WINDOW(window));
+    gtk_layer_set_layer(GTK_WINDOW(window), GTK_LAYER_SHELL_LAYER_OVERLAY);
+    gtk_layer_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_TOP, TRUE);
+    gtk_layer_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_BOTTOM, TRUE);
+    gtk_layer_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_LEFT, TRUE);
+    gtk_layer_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_RIGHT, TRUE);
+    gtk_layer_set_keyboard_mode(GTK_WINDOW(window), GTK_LAYER_SHELL_KEYBOARD_MODE_NONE);
 
     // Drawing area
     drawing_area = gtk_drawing_area_new();

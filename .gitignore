@@ -1,0 +1,25 @@
+# Compiled binaries 
+crosshair-w
+crosshaird
+*.o
+*.a
+*.so
+
+# Arch Packaging (makepkg output)
+pkg/
+src/
+*.pkg.tar
+*.pkg.tar.zst
+*.pkg.tar.xz
+
+# Duplicate / Nested Repo
+/Crosshair-W/
+/Crosshair-W/*
+
+# Editor folders and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*~
+*.swp

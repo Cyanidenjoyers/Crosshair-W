@@ -2,7 +2,7 @@
 
 Simple Crosshair Utility for Wayland Compositors.
 
-It's a real `wlr-layer-shell` surface, it's click-through, it
+Crosshair-W is a real `wlr-layer-shell` surface, it's click-through, it
 never takes keyboard focus, and it comes with a GTK3 settings GUI so you
 don't have to hand-edit a config file to change the color or size. Tested and
 confirmed working on KDE Plasma (Wayland) and MangoWM. Should work on any

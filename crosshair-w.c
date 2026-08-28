@@ -655,9 +655,9 @@ int main(int argc, char **argv) {
     gtk_header_bar_set_title(GTK_HEADER_BAR(header), "Crosshair");
     gtk_header_bar_set_show_close_button(GTK_HEADER_BAR(header), TRUE);
     GtkWidget *icon = gtk_image_new_from_file("icon.svg");
-    gtk_image_set_pixel_size(GTK_IMAGE(icon), 24);
+    gtk_image_set_pixel_size(GTK_IMAGE(icon), 16);
+    gtk_widget_set_size_request(icon, 16, 16);
     gtk_header_bar_pack_end(GTK_HEADER_BAR(header), icon);
-    gtk_window_set_titlebar(GTK_WINDOW(window), header);
 
     GtkWidget *notebook = gtk_notebook_new();
     gtk_notebook_set_show_tabs(GTK_NOTEBOOK(notebook), FALSE);

@@ -1,5 +1,10 @@
+<<<<<<< HEAD
 # Maintainer: Cyanidenjoyers
 pkgname=crosshair-w
+=======
+# Maintainer: Your Name <your.email@example.com>
+pkgname=Crosshair-W
+>>>>>>> 4404365 (GUI Update)
 pkgver=0.1.0
 pkgrel=1
 pkgdesc="Simple Wayland crosshair overlay with a GTK3 settings GUI"
@@ -39,7 +44,7 @@ package() {
 
 
   # Install desktop file
-  install -Dm644 /dev/stdin "$pkgdir/usr/share/applications/crosshair-w.desktop" <<EOF
+  install -Dm644 /dev/stdin "$pkgdir/usr/share/applications/Crosshair-W.desktop" <<EOF
 [Desktop Entry]
 Name=Crosshair W
 Comment=Simple Crosshair GUI for Wayland

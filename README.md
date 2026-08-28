@@ -1,6 +1,4 @@
 # Crosshair-W
-Simple Crosshair Utility For wayland Compositors
-# Crosshair-W
 
 Simple Crosshair Utility for Wayland Compositors.
 

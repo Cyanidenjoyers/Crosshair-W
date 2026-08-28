@@ -23,3 +23,6 @@ src/
 Thumbs.db
 *~
 *.swp
+
+# Env
+.env

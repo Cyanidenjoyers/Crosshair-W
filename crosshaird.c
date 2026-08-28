@@ -161,6 +161,8 @@ static gboolean on_draw(GtkWidget *widget, cairo_t *cr, gpointer data) {
 // Initialization & Signals
 // --------------------------------------------------------------------------
 static void reload_daemon() {
+    debug("reload_daemon: reloading config from disk\n");
+    load_config();
     if (drawing_area) {
         gtk_widget_queue_draw(drawing_area);
     }
@@ -196,6 +198,31 @@ int main(int argc, char **argv) {
     gtk_window_set_skip_taskbar_hint(GTK_WINDOW(window), TRUE);
     gtk_window_set_skip_pager_hint(GTK_WINDOW(window), TRUE);
     gtk_window_set_accept_focus(GTK_WINDOW(window), FALSE);
+
+    // Make the window itself transparent instead of an opaque black box.
+    // Without an RGBA visual + app-paintable, GTK paints the theme's
+    // default (opaque) background before our "draw" handler ever runs,
+    // so CAIRO_OPERATOR_CLEAR in on_draw has nothing to punch through.
+    GdkScreen *screen = gtk_widget_get_screen(window);
+    GdkVisual *visual = gdk_screen_get_rgba_visual(screen);
+    if (visual != NULL && gdk_screen_is_composited(screen)) {
+        gtk_widget_set_visual(window, visual);
+        debug("Using RGBA visual for transparency\n");
+    } else {
+        debug("WARNING: no RGBA visual / compositing not available; "
+              "crosshair will render on an opaque background\n");
+    }
+    gtk_widget_set_app_paintable(window, TRUE);
+
+    // Belt-and-braces: force window + drawing area background transparent
+    // via CSS too, in case the active GTK theme sets an opaque one.
+    GtkCssProvider *transparent_css = gtk_css_provider_new();
+    gtk_css_provider_load_from_data(transparent_css,
+        "window, drawingarea { background-color: rgba(0,0,0,0); background-image: none; }",
+        -1, NULL);
+    gtk_style_context_add_provider_for_screen(screen,
+        GTK_STYLE_PROVIDER(transparent_css), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+    g_object_unref(transparent_css);
 
     // Configure Layer Shell
     // FIXED: Casting to GTK_WINDOW(window) because layer shell expects GtkWindow*

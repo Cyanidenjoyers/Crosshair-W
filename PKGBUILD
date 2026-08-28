@@ -1,10 +1,5 @@
-<<<<<<< HEAD
 # Maintainer: Cyanidenjoyers
 pkgname=crosshair-w
-=======
-# Maintainer: Your Name <your.email@example.com>
-pkgname=Crosshair-W
->>>>>>> 4404365 (GUI Update)
 pkgver=0.1.0
 pkgrel=1
 pkgdesc="Simple Wayland crosshair overlay with a GTK3 settings GUI"
@@ -25,7 +20,7 @@ source=("$pkgname-$pkgver.tar.gz::https://github.com/Cyanidenjoyers/Crosshair-W/
 # (only VCS packages using a pkgver() function get that pass) -- run
 # `updpkgsums` (or `makepkg -g` and paste the result in) once the tag
 # exists, and commit the real hash before submitting.
-sha256sums=('SKIP')
+sha256sums=('9f4208acb4a20c2c38da3eee4fffbb9cc6e29efec016d5369f07c2099ce4a008')
 
 build() {
 	# GitHub names the extracted folder after the repo, not pkgname --

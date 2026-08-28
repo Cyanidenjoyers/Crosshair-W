@@ -20,7 +20,7 @@ source=("$pkgname-$pkgver.tar.gz::https://github.com/Cyanidenjoyers/Crosshair-W/
 # (only VCS packages using a pkgver() function get that pass) -- run
 # `updpkgsums` (or `makepkg -g` and paste the result in) once the tag
 # exists, and commit the real hash before submitting.
-sha256sums=('9f4208acb4a20c2c38da3eee4fffbb9cc6e29efec016d5369f07c2099ce4a008')
+sha256sums=('442a61ff640345f7afcb01e1e1d543790c61ff5f31bedda7312a71ef21c25a40')
 
 build() {
 	# GitHub names the extracted folder after the repo, not pkgname --

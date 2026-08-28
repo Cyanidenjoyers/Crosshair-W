@@ -64,45 +64,22 @@ static void set_transparent_background(GtkWidget *widget) {
     g_object_unref(provider);
 }
 
-// --- Config loading ---
 void load_config() {
     const char *home = getenv("HOME");
-    if (!home) {
-        debug("HOME not set, using built-in defaults.\n");
-        return;
-    }
     char path[512];
     snprintf(path, sizeof(path), "%s%s", home, CONFIG_PATH);
-    
-    debug("load_config: reading %s\n", path);
+
     FILE *f = fopen(path, "r");
     if (!f) {
-        debug("Config file not found, creating default.\n");
-        char dir[512];
-        snprintf(dir, sizeof(dir), "%s/.config/crosshair", home);
-        mkdir(dir, 0755);
-        f = fopen(path, "w");
-        if (f) {
-            fprintf(f, "{\n"
-                       "  \"style\": 0,\n"
-                       "  \"red\": 0.0,\n"
-                       "  \"green\": 1.0,\n"
-                       "  \"blue\": 0.0,\n"
-                       "  \"alpha\": 1.0,\n"
-                       "  \"size\": 3.0,\n"
-                       "  \"thickness\": 1.0,\n"
-                       "  \"gap\": 0.0,\n"
-                       "  \"enabled\": 1,\n"
-                       "  \"use_gamma\": 0,\n"
-                       "  \"gamma\": 1.2,\n"
-                       "  \"preview_bg\": \"#ffffff\",\n"
-                       "  \"theme\": \"default\"\n"
-                       "}\n");
-            fclose(f);
-        }
+        // Default settings
+        current_style = 0;
+        current_red = 0.0; current_green = 1.0; current_blue = 0.0;
+        current_alpha = 1.0; current_size = 3.0; current_thickness = 1.0;
+        current_gap = 0.0; current_offset_x = 0.0; current_offset_y = 0.0;
+        is_enabled = 0;
         return;
     }
-    
+
     fseek(f, 0, SEEK_END);
     long len = ftell(f);
     fseek(f, 0, SEEK_SET);
@@ -110,43 +87,34 @@ void load_config() {
     fread(data, 1, len, f);
     data[len] = '\0';
     fclose(f);
-    
+
     json_object *root = json_tokener_parse(data);
     free(data);
-    if (!root) {
-        debug("Failed to parse JSON config.\n");
-        return;
-    }
-    
+    if (!root) return;
+
     json_object *tmp;
+    // Load style
     if (json_object_object_get_ex(root, "style", &tmp))
-        config.style = json_object_get_int(tmp);
-    if (json_object_object_get_ex(root, "red", &tmp))
-        config.red = json_object_get_double(tmp);
-    if (json_object_object_get_ex(root, "green", &tmp))
-        config.green = json_object_get_double(tmp);
-    if (json_object_object_get_ex(root, "blue", &tmp))
-        config.blue = json_object_get_double(tmp);
-    if (json_object_object_get_ex(root, "alpha", &tmp))
-        config.alpha = json_object_get_double(tmp);
-    if (json_object_object_get_ex(root, "size", &tmp))
-        config.size = json_object_get_double(tmp);
-    if (json_object_object_get_ex(root, "thickness", &tmp))
-        config.thickness = json_object_get_double(tmp);
-    if (json_object_object_get_ex(root, "gap", &tmp))
-        config.gap = json_object_get_double(tmp);
-    if (json_object_object_get_ex(root, "enabled", &tmp))
-        config.enabled = json_object_get_boolean(tmp);
-    if (json_object_object_get_ex(root, "use_gamma", &tmp))
-        config.use_gamma = json_object_get_boolean(tmp);
-    if (json_object_object_get_ex(root, "gamma", &tmp))
-        config.gamma = json_object_get_double(tmp);
-    
+        current_style = json_object_get_int(tmp);
+
+    // Load color from the new object
+    json_object *color_obj;
+    if (json_object_object_get_ex(root, "color", &color_obj)) {
+        json_object *r, *g, *b;
+        if (json_object_object_get_ex(color_obj, "red", &r)) current_red = json_object_get_double(r);
+        if (json_object_object_get_ex(color_obj, "green", &g)) current_green = json_object_get_double(g);
+        if (json_object_object_get_ex(color_obj, "blue", &b)) current_blue = json_object_get_double(b);
+    }
+
+    if (json_object_object_get_ex(root, "alpha", &tmp)) current_alpha = json_object_get_double(tmp);
+    if (json_object_object_get_ex(root, "size", &tmp)) current_size = json_object_get_double(tmp);
+    if (json_object_object_get_ex(root, "thickness", &tmp)) current_thickness = json_object_get_double(tmp);
+    if (json_object_object_get_ex(root, "gap", &tmp)) current_gap = json_object_get_double(tmp);
+    if (json_object_object_get_ex(root, "offset_x", &tmp)) current_offset_x = json_object_get_double(tmp);
+    if (json_object_object_get_ex(root, "offset_y", &tmp)) current_offset_y = json_object_get_double(tmp);
+    if (json_object_object_get_ex(root, "enabled", &tmp)) is_enabled = json_object_get_boolean(tmp);
+
     json_object_put(root);
-    
-    debug("Config loaded: style=%d, color=(%.2f,%.2f,%.2f), alpha=%.2f, size=%.1f, thick=%.1f, gap=%.1f, enabled=%d, use_gamma=%d, gamma=%.2f\n",
-          config.style, config.red, config.green, config.blue, config.alpha,
-          config.size, config.thickness, config.gap, config.enabled, config.use_gamma, config.gamma);
 }
 
 // --- Gamma control ---

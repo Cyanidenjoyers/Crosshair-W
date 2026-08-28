@@ -13,7 +13,7 @@ optdepends=('wlsunset: gamma/color-temperature adjustment')
 
 source=("$pkgname-$pkgver.tar.gz::https://github.com/Cyanidenjoyers/Crosshair-W/archive/refs/tags/v$pkgver.tar.gz")
 
-sha256sums=('51c0d8886a0b45fc39a4c0291a4963efc6a1f1976ea3e45ea534866b69442db9')
+sha256sums=('5417c9a05fcbc07edfb59f9e9f35853bdb63348f7782530bbc7a1b73b6483cb2')
 
 build() {
 	# GitHub names the extracted folder after the repo, not pkgname --

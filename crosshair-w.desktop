@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Crosshair W
+Comment=Simple Crosshair GUI for Wayland
+Exec=crosshair-w
+Icon=accessories-calculator
+Terminal=false
+Type=Application
+Categories=Utility;
+Keywords=crosshair;overlay;wayland;

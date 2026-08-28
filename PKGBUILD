@@ -1,7 +1,7 @@
 # Maintainer: Cyanidenjoyers
 #
 pkgname=crosshair-w
-pkgver=0.2.1
+pkgver=0.2.2
 pkgrel=1
 pkgdesc="Simple Wayland crosshair overlay with a GTK3 settings GUI"
 arch=('x86_64')
@@ -37,7 +37,7 @@ package() {
 Name=Crosshair W
 Comment=Simple Crosshair GUI for Wayland
 Exec=crosshair-w
-Icon=accessories-calculator
+Icon=icon.svg
 Terminal=false
 Type=Application
 Categories=Utility;

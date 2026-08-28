@@ -1,8 +1,8 @@
 # Maintainer: Cyanidenjoyers
 #
 pkgname=crosshair-w
-pkgver=0.1.0
-pkgrel=1
+pkgver=0.2.0
+pkgrel=2
 pkgdesc="Simple Wayland crosshair overlay with a GTK3 settings GUI"
 arch=('x86_64')
 url="https://github.com/Cyanidenjoyers/Crosshair-W"
@@ -11,17 +11,9 @@ depends=('gtk3' 'gtk-layer-shell' 'json-c')
 makedepends=('pkgconf')
 optdepends=('wlsunset: gamma/color-temperature adjustment')
 
-# The repo has no tags yet, so this points at where the v$pkgver release
-# archive will live once one exists. Tag it (`git tag v$pkgver && git push
-# --tags`, or cut a GitHub Release) before this will actually resolve.
 source=("$pkgname-$pkgver.tar.gz::https://github.com/Cyanidenjoyers/Crosshair-W/archive/refs/tags/v$pkgver.tar.gz")
 
-# Placeholder until v$pkgver is tagged. SKIP builds fine locally with
-# makepkg, but the AUR does not accept SKIP for a regular tarball source
-# (only VCS packages using a pkgver() function get that pass) -- run
-# `updpkgsums` (or `makepkg -g` and paste the result in) once the tag
-# exists, and commit the real hash before submitting.
-sha256sums=('442a61ff640345f7afcb01e1e1d543790c61ff5f31bedda7312a71ef21c25a40')
+sha256sums=('2f815eafd1fd0f7556c520ffbfbf91eaee1ce88c5145f93c55ab0cf02b229b2d')
 
 build() {
 	# GitHub names the extracted folder after the repo, not pkgname --

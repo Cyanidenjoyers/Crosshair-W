@@ -55,6 +55,28 @@ typedef struct {
     char theme[32];
     GtkWidget *notebook;
     GtkWidget *window;
+
+    // Set while widgets are being populated from disk (or from hardcoded
+    // fallback defaults) at startup. save_config() checks this and no-ops
+    // while it's set, so that setting a widget's value programmatically
+    // during load doesn't fire its "changed"/"value-changed" signal and
+    // write a half-loaded (or default-only) state to disk, clobbering the
+    // real saved config before it's even been read.
+    int loading;
+
+    // Debounce id for the pending disk write (0 = none scheduled). Every
+    // slider/spinbutton pair fires its callback twice for a single edit
+    // (the slider's handler updates the spin button, which fires its own
+    // "value-changed" right back), and a couple of code paths can fire an
+    // extra signal on top of that (e.g. a style switch clamping the size
+    // range). Writing to disk and SIGHUP-ing the daemon synchronously on
+    // every one of those meant the daemon could reload several times in a
+    // row for a single edit, using whatever partial widget state existed
+    // at each intermediate instant - occasionally including a version of
+    // the config where a checkbox hadn't visually "caught up" yet. Instead
+    // we coalesce a burst of these into a single write of the final,
+    // settled state a little while after the last signal arrives.
+    guint save_source_id;
 } Widgets;
 
 // FORWARD DECLARATION (Fix for implicit declaration error)
@@ -99,10 +121,19 @@ static gboolean draw_preview(GtkWidget *widget, cairo_t *cr, gpointer data) {
 
     cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
     GdkRGBA bg_color;
-    gdk_rgba_parse(&bg_color, w->preview_bg);
+    const char *bg_str = (w->preview_bg[0] != '\0') ? w->preview_bg : "#000000";
+    if (!gdk_rgba_parse(&bg_color, bg_str)) {
+        // Malformed/empty color string - fall back to black instead of
+        // leaving bg_color uninitialized (which made the preview look
+        // "see-through" on compositors with window transparency enabled).
+        gdk_rgba_parse(&bg_color, "#000000");
+    }
     cairo_set_source_rgba(cr, bg_color.red, bg_color.green, bg_color.blue, bg_color.alpha);
     cairo_paint(cr);
 
+    // Preview intentionally ignores "enabled" - it always shows the
+    // crosshair so you can see/adjust its appearance even while the
+    // real overlay is toggled off.
     cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
     cairo_set_source_rgba(cr, w->red, w->green, w->blue, w->alpha);
 
@@ -308,6 +339,16 @@ void on_gap_slider_changed(GtkRange *range, gpointer data) {
  * ---------------------------------------------------------------------- */
 
 void save_config(Widgets *w) {
+    if (w->loading) {
+        // We're in the middle of populating widgets from a config file (or
+        // from fallback defaults) at startup. Every gtk_range_set_value /
+        // gtk_combo_box_set_active call during that process fires the same
+        // "changed" signals a real user edit would, which would otherwise
+        // call save_config() with a partially-loaded state and overwrite
+        // the on-disk config before we've finished reading it.
+        debug("save_config: skipped, still loading config into UI\n");
+        return;
+    }
     debug("save_config: saving config\n");
     w->style = gtk_combo_box_get_active(GTK_COMBO_BOX(w->style_combo));
     GdkRGBA rgba;
@@ -391,17 +432,34 @@ void save_config(Widgets *w) {
 }
 
 void load_config_into_ui(Widgets *w) {
+    // Block save_config() for the duration of this function. Every
+    // gtk_*_set_* call below fires the same signal a live user edit would,
+    // and previously each one called save_config() immediately - meaning
+    // the act of *loading* the config would itself overwrite the file on
+    // disk with whatever partial state existed at that instant, before the
+    // rest of the real saved values had even been read. That's what made
+    // settings (like your selected style) appear to reset on every launch.
+    w->loading = 1;
+
+    // Sane fallback defaults, used for anything not found in the config
+    // file below (missing file, corrupt file, or a config that's simply
+    // missing a key, e.g. after a code change added a new field).
+    gtk_combo_box_set_active(GTK_COMBO_BOX(w->style_combo), 0); // Dot
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(w->enable_check), TRUE);
+    strcpy(w->preview_bg, "#000000");
+    strcpy(w->theme, "default");
+
     const char *home = getenv("HOME");
     char path[512];
     snprintf(path, sizeof(path), "%s%s", home, CONFIG_PATH);
 
     FILE *f = fopen(path, "r");
     if (!f) {
-        strcpy(w->preview_bg, "#ffffff");
-        strcpy(w->theme, "default");
         w->use_gamma = 0;
         w->gamma = 1.2;
-        save_config(w);
+        w->loading = 0;
+        save_config(w); // no existing config - persist these defaults
+
         return;
     }
 
@@ -416,11 +474,10 @@ void load_config_into_ui(Widgets *w) {
     json_object *root = json_tokener_parse(data);
     free(data);
     if (!root) {
-        strcpy(w->preview_bg, "#ffffff");
-        strcpy(w->theme, "default");
         w->use_gamma = 0;
         w->gamma = 1.2;
-        save_config(w);
+        w->loading = 0;
+        save_config(w); // corrupt config - persist sane defaults
         return;
     }
 
@@ -491,13 +548,16 @@ void load_config_into_ui(Widgets *w) {
         gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(w->gamma_check), json_object_get_boolean(tmp));
     if (json_object_object_get_ex(root, "gamma", &tmp))
         gtk_spin_button_set_value(GTK_SPIN_BUTTON(w->gamma_spin), json_object_get_double(tmp));
-    if (json_object_object_get_ex(root, "preview_bg", &tmp)) {
+    if (json_object_object_get_ex(root, "preview_bg", &tmp) &&
+        json_object_get_string(tmp)[0] != '\0') {
         const char *bg = json_object_get_string(tmp);
         strncpy(w->preview_bg, bg, sizeof(w->preview_bg)-1);
         w->preview_bg[sizeof(w->preview_bg)-1] = '\0';
-    } else {
-        strcpy(w->preview_bg, "#ffffff");
     }
+    // else: leave the "#000000" default set at the top of this function -
+    // an empty string in the config (which is what a fresh save produces
+    // if this bug is hit) used to be copied verbatim and made the preview
+    // background parse to garbage/transparent.
     if (json_object_object_get_ex(root, "theme", &tmp)) {
         const char *theme = json_object_get_string(tmp);
         strncpy(w->theme, theme, sizeof(w->theme)-1);
@@ -507,6 +567,7 @@ void load_config_into_ui(Widgets *w) {
     }
 
     json_object_put(root);
+    w->loading = 0; // done populating widgets - save_config() works normally again
     apply_theme(w);
     update_style_dependent_widgets(w);
     gtk_widget_queue_draw(w->preview_area);
@@ -664,6 +725,12 @@ int main(int argc, char **argv) {
     gtk_container_add(GTK_CONTAINER(window), notebook);
 
     Widgets widgets = {0};
+    // Guard save_config() against firing while the UI is still being built
+    // below (widget creation and the default-value calls before
+    // load_config_into_ui() runs can themselves trigger "changed" signals).
+    // load_config_into_ui() takes ownership of this flag and clears it once
+    // real values are in place.
+    widgets.loading = 1;
     widgets.notebook = notebook;
     widgets.window = window;
     for (int i = 0; i < 4; i++) {

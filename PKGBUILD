@@ -1,7 +1,6 @@
 # Maintainer: Cyanidenjoyers
-#
 pkgname=crosshair-w
-pkgver=0.2.3
+pkgver=0.2.0
 pkgrel=1
 pkgdesc="Simple Wayland crosshair overlay with a GTK3 settings GUI"
 arch=('x86_64')
@@ -13,7 +12,7 @@ optdepends=('wlsunset: gamma/color-temperature adjustment')
 
 source=("$pkgname-$pkgver.tar.gz::https://github.com/Cyanidenjoyers/Crosshair-W/archive/refs/tags/v$pkgver.tar.gz")
 
-sha256sums=('9e9ce92b678b163313f1578453d9d24170d2da9e39688f6630d83e2d5badebcb')
+sha256sums=('f626ddbedd52d7ce09aefe042007cbd011633675d9b33ba85ce7dc75e1c86b06')
 
 build() {
 	# GitHub names the extracted folder after the repo, not pkgname --

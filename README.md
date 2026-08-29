@@ -1,5 +1,9 @@
 # Crosshair-W
 
+<p>
+  <img src="icon.svg" alt="Settings GUI" width="400">
+</p>
+
 Simple Crosshair Utility for Wayland Compositors.
 
 Crosshair-W is a real `wlr-layer-shell` surface, it's click-through, it

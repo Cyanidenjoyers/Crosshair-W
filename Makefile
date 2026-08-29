@@ -16,8 +16,8 @@ install: all
 	install -Dm755 crosshair-w "$(DESTDIR)$(PREFIX)/bin/crosshair-w"
 
 uninstall:
-	rm -f /usr/local/bin/crosshaird
-	rm -f /usr/local/bin/crosshair-w
+	rm -f /usr/bin/crosshaird
+	rm -f /usr/bin/crosshair-w
 
 clean:
 	rm -f crosshaird crosshair-w

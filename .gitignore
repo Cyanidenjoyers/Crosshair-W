@@ -12,6 +12,8 @@ src/
 *.pkg.tar.zst
 *.pkg.tar.xz
 Makefile
+.SRCINFO
+.install
 
 # Duplicate / Nested Repo
 /Crosshair-W/

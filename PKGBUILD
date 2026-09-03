@@ -13,7 +13,7 @@ install=crosshair-w.install
 
 source=("$pkgname-$pkgver.tar.gz::https://github.com/Cyanidenjoyers/Crosshair-W/archive/refs/tags/v$pkgver.tar.gz")
 
-sha256sums=('f626ddbedd52d7ce09aefe042007cbd011633675d9b33ba85ce7dc75e1c86b06')
+sha256sums=('c67d8f013cc47b359cac400a2dc67e3ee62c928ad1f8d6fafd4b1526a2e115e2')
 
 build() {
 # GitHub names the extracted folder after the repo, not pkgname --

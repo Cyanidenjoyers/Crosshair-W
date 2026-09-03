@@ -1,6 +1,6 @@
 # Maintainer: Cyanidenjoyers
 pkgname=crosshair-w
-pkgver=0.2.0
+pkgver=0.2.1
 pkgrel=1
 pkgdesc="Simple Wayland crosshair overlay with a GTK3 settings GUI"
 arch=('x86_64')

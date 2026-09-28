@@ -482,8 +482,19 @@ void load_config_into_ui(Widgets *w) {
     }
 
     json_object *tmp;
-    if (json_object_object_get_ex(root, "style", &tmp))
-        gtk_combo_box_set_active(GTK_COMBO_BOX(w->style_combo), json_object_get_int(tmp));
+    if (json_object_object_get_ex(root, "style", &tmp)) {
+        int style_val = json_object_get_int(tmp);
+        // A style value outside the combo box's actual range (e.g. a
+        // leftover -1 from before this loader validated it) would call
+        // gtk_combo_box_set_active() with an index that doesn't exist,
+        // which clears the selection entirely - leaving the dropdown
+        // blank and nothing matching in the drawing switch statements.
+        if (style_val < 0 || style_val > 3) {
+            debug("load_config: ignoring out-of-range style %d, using Dot\n", style_val);
+            style_val = 0;
+        }
+        gtk_combo_box_set_active(GTK_COMBO_BOX(w->style_combo), style_val);
+    }
     {
         GdkRGBA rgba = { 0.0, 0.0, 0.0, 1.0 };
         if (json_object_object_get_ex(root, "red", &tmp)) rgba.red = json_object_get_double(tmp);
@@ -715,10 +726,42 @@ int main(int argc, char **argv) {
     GtkWidget *header = gtk_header_bar_new();
     gtk_header_bar_set_title(GTK_HEADER_BAR(header), "Crosshair");
     gtk_header_bar_set_show_close_button(GTK_HEADER_BAR(header), TRUE);
-    GtkWidget *icon = gtk_image_new_from_file("icon.svg");
-    gtk_image_set_pixel_size(GTK_IMAGE(icon), 16);
-    gtk_widget_set_size_request(icon, 16, 16);
-    gtk_header_bar_pack_end(GTK_HEADER_BAR(header), icon);
+    // Only minimize/maximize/close on the right; nothing GTK-provided on the
+    // left (our own icon goes there instead, via pack_start below).
+    gtk_header_bar_set_decoration_layout(GTK_HEADER_BAR(header), ":minimize,maximize,close");
+
+    // Prefer the icon-theme lookup (this resolves once the package is
+    // actually installed - see the hicolor install in PKGBUILD). Fall back
+    // to loading the SVG straight from the working directory for the case
+    // where this is being run directly from the source tree, unpackaged.
+    GtkWidget *icon;
+    GtkIconTheme *icon_theme = gtk_icon_theme_get_default();
+    const int header_icon_px = 20;
+    if (gtk_icon_theme_has_icon(icon_theme, "crosshair-w")) {
+        icon = gtk_image_new_from_icon_name("crosshair-w", GTK_ICON_SIZE_LARGE_TOOLBAR);
+        // pixel-size only affects icon-name-based images (which this is) -
+        // it has no effect on the file-loaded fallback below.
+        gtk_image_set_pixel_size(GTK_IMAGE(icon), header_icon_px);
+    } else {
+        // gtk_image_set_pixel_size() silently does nothing for a
+        // file-loaded image in GTK3, so icon.svg was rendering at its
+        // native 400x400 here regardless of that call. Rasterize the SVG
+        // straight to the target size instead - this both actually resizes
+        // it and keeps it crisp (librsvg renders at the target resolution
+        // rather than us downscaling a full-size render).
+        GdkPixbuf *pixbuf = gdk_pixbuf_new_from_file_at_scale(
+            "icon.svg", header_icon_px, header_icon_px, TRUE, NULL);
+        if (pixbuf) {
+            icon = gtk_image_new_from_pixbuf(pixbuf);
+            g_object_unref(pixbuf);
+        } else {
+            icon = gtk_image_new_from_icon_name("image-missing", GTK_ICON_SIZE_LARGE_TOOLBAR);
+            gtk_image_set_pixel_size(GTK_IMAGE(icon), header_icon_px);
+        }
+    }
+    gtk_header_bar_pack_start(GTK_HEADER_BAR(header), icon);
+
+    gtk_window_set_titlebar(GTK_WINDOW(window), header);
 
     GtkWidget *notebook = gtk_notebook_new();
     gtk_notebook_set_show_tabs(GTK_NOTEBOOK(notebook), FALSE);

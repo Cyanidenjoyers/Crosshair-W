@@ -14,6 +14,7 @@ src/
 Makefile
 .SRCINFO
 .install
+.pkg
 
 # Duplicate / Nested Repo
 /Crosshair-W/
